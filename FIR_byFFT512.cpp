@@ -12,33 +12,35 @@
 #include "fdacoefs.h"
 
 #define FFT_SIZE 512
+int const STAGE_SIZE =  FFT_SIZE - BL + 1;
 
 using namespace std;
 
 // Vector that holds the filter FFT 
 float H_real[FFT_SIZE] = {0.0};
 float H_imag[FFT_SIZE] = {0.0};
-
-
-double u[BL] = {0.0};
-
 // This buffer is designed to hold the input samples for the overlap-add implementation
-double buffer[FFT_SIZE - BL + 1] = {0.0};
+float buffer[STAGE_SIZE] = {0.0};
 
 
-double filter(float x) {
-    // Shift the register values.
-    for(int k=BL-1; k>0; k--){
-      u[k] = u[k-1];
-    }
-    u[0] = x;
-    // The numerator
-    double y = 0;
-    for(int k=0; k<=BL-1; k++){
-      y += B[k] * u[k];
-    }
-    return y;
-}
+// double u[BL] = {0.0};
+
+
+
+
+// double filter(float x) {
+//     // Shift the register values.
+//     for(int k=BL-1; k>0; k--){
+//       u[k] = u[k-1];
+//     }
+//     u[0] = x;
+//     // The numerator
+//     double y = 0;
+//     for(int k=0; k<=BL-1; k++){
+//       y += B[k] * u[k];
+//     }
+//     return y;
+// }
 
 int main (int argc, char *argv[]) {
   if (argc < 3)	{
@@ -55,35 +57,111 @@ int main (int argc, char *argv[]) {
   cout << "Start FIR filtering using 512-point FFT" << endl;
   chrono::steady_clock::time_point begin = chrono::steady_clock::now();
 
-  // FILE *fx, *fy;
-  ofstream fx, fy;
-  fx.open (inputFileName, ios::in);
-  // fx = fopen(inputFileName,"rb"); // argv[1]: Input signal file name
+  fstream fx, fy;
+  fx.open(inputFileName, ios::in|ios::binary);
   if(!fx.is_open()){
     cerr << "Input file not found" << endl;
     return -1;
   }
-  fy.open (outputFileName, ios::out);
-  // fy = fopen(outputFileName,"wb"); // argv[2]: Output signal file name
-  // fy2 = fopen("out_im.bin","wb"); // argv[2]: Output signal file name
+  
 
   // Perform the FFT of the filter h[n] once
   copy(B,B+BL, H_real);
-  // copy(H_real, B, BL*sizeof(real64_T));
   complx H[FFT_SIZE];
   for(int i=0; i<FFT_SIZE; i++){
     H[i].im = H_imag[i];
     H[i].re = H_real[i];
   }
   fft842(0,FFT_SIZE, H);
-  for(int i=0; i<FFT_SIZE; i++){
-    float mag = sqrt(pow((H[i].re),2) + pow((H[i].im),2));
-    fy << mag;
-  //  fwrite(*(sqrt(pow((H[i].re),2) + pow((H[i].im),2))), sizeof(float), 1, fy); // save output
-  //  fwrite(&H[i].im, sizeof(float), 1, fy2); // save output
-  }
-  
 
+  // Open output file
+  fy.open (outputFileName, ios::out);
+  complx X1[FFT_SIZE], y_previous[FFT_SIZE];
+
+  // Initiate y_previous
+  // for(int i=0; i<FFT_SIZE; i++){
+  //   float real, imag;
+  //   y_previous[i].re = 0.0;
+  //   y_previous[i].im = 0.0;
+  // }
+
+  int k = 0;
+  while(!fx.eof()){
+
+    for(int i=0; i<STAGE_SIZE; i++){
+      buffer[i] = 0.0;
+    }
+    fx.read((char *)buffer, sizeof(buffer));
+
+    for(int i=0; i<FFT_SIZE; i++){
+      if(i<STAGE_SIZE){
+        X1[i].im = 0.0;
+        X1[i].re = buffer[i];
+      }
+      else {
+        X1[i].im = 0.0;
+        X1[i].re = 0.0;
+      }
+    }
+
+    fft842(0,FFT_SIZE, X1);
+
+    // Multiply X1 * H
+    for(int i=0; i<FFT_SIZE; i++){
+      float real, imag;
+      real = X1[i].re*H[i].re - X1[i].im*H[i].im;
+      imag = X1[i].im*H[i].re + X1[i].re*H[i].im;
+      X1[i].re = real;
+      X1[i].im = imag;
+    }
+
+    // Take the IFFT
+    fft842(1,FFT_SIZE, X1);
+
+    
+    if(k!=0){
+      int count = 0;
+      float y;
+      for(int i=BL-1; i<FFT_SIZE; i++){
+          if(i== FFT_SIZE-1){
+            int ok=1;
+          }
+          if(i<STAGE_SIZE){ // No overlap region (print out)
+            y = y_previous[i].re;
+          }
+          else { // Overlap region (add!)
+            y = y_previous[i].re + X1[i-STAGE_SIZE].re;
+          }
+          float* var = &y;
+          count++;
+          cout << "y[" << count << "] = " << y << endl;
+          fy.write((char *)var, sizeof(float));
+      }
+      // cout << "counts = " << count << endl;
+    }
+
+    // Transfer X1 to X2 and zero out X1 
+    for(int i=0; i<FFT_SIZE; i++){
+      y_previous[i].re = X1[i].re;
+      y_previous[i].im = X1[i].im;
+      X1[i].re = 0.0;
+      X1[i].im = 0.0;
+    }
+    k++;
+  }
+
+  cout << "k = " << k << endl;
+
+
+  // for(int i=0; i<FFT_SIZE; i++){
+  //   float mag = pow((H[i].re),2) + pow((H[i].im),2);
+  //   mag = sqrt(mag);
+  //   float* var = &mag;
+  //   fy.write((char*)var, sizeof(float));
+  // //  fwrite(*(sqrt(pow((H[i].re),2) + pow((H[i].im),2))), sizeof(float), 1, fy); // save output
+  // //  fwrite(&H[i].im, sizeof(float), 1, fy2); // save output
+  // }
+  
 
   // float x;
   // float y;

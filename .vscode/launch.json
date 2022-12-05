@@ -11,7 +11,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/FIR_byFFT512.out",
-      "args": ["cos_f_500HZ.bin", "out.bin"],
+      "args": ["cos_f_10HZ.bin", "out.bin"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],
