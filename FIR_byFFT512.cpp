@@ -23,24 +23,6 @@ float H_imag[FFT_SIZE] = {0.0};
 float buffer[STAGE_SIZE] = {0.0};
 
 
-// double u[BL] = {0.0};
-
-
-
-
-// double filter(float x) {
-//     // Shift the register values.
-//     for(int k=BL-1; k>0; k--){
-//       u[k] = u[k-1];
-//     }
-//     u[0] = x;
-//     // The numerator
-//     double y = 0;
-//     for(int k=0; k<=BL-1; k++){
-//       y += B[k] * u[k];
-//     }
-//     return y;
-// }
 
 int main (int argc, char *argv[]) {
   if (argc < 3)	{
@@ -78,12 +60,6 @@ int main (int argc, char *argv[]) {
   fy.open (outputFileName, ios::out);
   complx X1[FFT_SIZE], y_previous[FFT_SIZE];
 
-  // Initiate y_previous
-  // for(int i=0; i<FFT_SIZE; i++){
-  //   float real, imag;
-  //   y_previous[i].re = 0.0;
-  //   y_previous[i].im = 0.0;
-  // }
 
   int k = 0;
   while(!fx.eof()){
@@ -120,7 +96,7 @@ int main (int argc, char *argv[]) {
 
     
     if(k!=0){
-      int count = 0;
+      // int count = 0;
       float y;
       for(int i=BL-1; i<FFT_SIZE; i++){
           if(i== FFT_SIZE-1){
@@ -133,11 +109,9 @@ int main (int argc, char *argv[]) {
             y = y_previous[i].re + X1[i-STAGE_SIZE].re;
           }
           float* var = &y;
-          count++;
-          cout << "y[" << count << "] = " << y << endl;
+
           fy.write((char *)var, sizeof(float));
       }
-      // cout << "counts = " << count << endl;
     }
 
     // Transfer X1 to X2 and zero out X1 
@@ -150,34 +124,14 @@ int main (int argc, char *argv[]) {
     k++;
   }
 
-  cout << "k = " << k << endl;
+  chrono::steady_clock::time_point end = chrono::steady_clock::now(); 
 
-
-  // for(int i=0; i<FFT_SIZE; i++){
-  //   float mag = pow((H[i].re),2) + pow((H[i].im),2);
-  //   mag = sqrt(mag);
-  //   float* var = &mag;
-  //   fy.write((char*)var, sizeof(float));
-  // //  fwrite(*(sqrt(pow((H[i].re),2) + pow((H[i].im),2))), sizeof(float), 1, fy); // save output
-  // //  fwrite(&H[i].im, sizeof(float), 1, fy2); // save output
-  // }
-  
-
-  // float x;
-  // float y;
-  // while(!feof(fx)){
-    
-  //   fread(&x, sizeof(float), 1, fx); // read in next sample
-  //   y = filter(x); 
-  //   fwrite(&y, sizeof(float), 1, fy); // save output
-  // }
-  // chrono::steady_clock::time_point end = chrono::steady_clock::now();
-
-  // Close all files
+// Close all files
 fx.close();
 fy.close();
 
-  // cout << "Completed in " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs]" << endl;
+cout << "Completed in " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs]" << endl;
+
 
   return 0;
 }
